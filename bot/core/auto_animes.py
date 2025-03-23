@@ -125,7 +125,7 @@ async def get_animes(name, torrent, force=False):
                 
                 msg_id = msg.id
                 link = f"https://telegram.me/OngoingAniBot?start={await encode('get-'+str(msg_id * abs(Var.FILE_STORE)))}"
-                link = f"https://telegram.me/{(await bot.get_me()).username}?start={await encode('get-'+str(msg_id * abs(Var.FILE_STORE)))}"
+                #link = f"https://telegram.me/{(await bot.get_me()).username}?start={await encode('get-'+str(msg_id * abs(Var.FILE_STORE)))}"
                 
                 if post_msg:
                     if len(btns) != 0 and len(btns[-1]) == 1:
