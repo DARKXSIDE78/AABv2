@@ -21,4 +21,4 @@ class MongoDB:
     async def reboot(self):
         await self.__animes.drop()
 
-db = MongoDB(Var.MONGO_URI, "GenAnimeOngoing")
+db = MongoDB(Var.MONGO_URI, "GenAnimeOngoingV2")
