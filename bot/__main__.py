@@ -7,10 +7,9 @@ from sys import executable
 from signal import SIGKILL
 
 from bot import bot, Var, bot_loop, sch, LOGS, ffQueue, ffLock, ffpids_cache, ff_queued
-from bot.core.auto_animes import fetch_animes, fetch_dubbed_animes  # New import
+from bot.core.auto_animes import fetch_animes
 from bot.core.func_utils import clean_up, new_task, editMessage
-from bot.modules.up_posts import upcoming_animes, upcoming_dubbed_animes  # New import
-from bot.core.database import db, dual_db  # Added dual_db
+from bot.modules.up_posts import upcoming_animes
 
 @bot.on_message(command('restart') & user(Var.ADMINS))
 @new_task
@@ -22,10 +21,10 @@ async def restart(client, message):
     if len(ffpids_cache) != 0: 
         for pid in ffpids_cache:
             try:
-                LOGS.info(f"Killing process ID: {pid}")
+                LOGS.info(f"Process ID : {pid}")
                 kill(pid, SIGKILL)
             except (OSError, ProcessLookupError):
-                LOGS.error("Process kill failed")
+                LOGS.error("Killing Process Failed !!")
                 continue
     await (await create_subprocess_exec('python3', 'update.py')).wait()
     async with aiopen(".restartmsg", "w") as f:
@@ -37,12 +36,12 @@ async def restart():
         with open(".restartmsg") as f:
             chat_id, msg_id = map(int, f)
         try:
-            await bot.edit_message_text(chat_id=chat_id, message_id=msg_id, text="<i>Restarted Successfully!</i>")
+            await bot.edit_message_text(chat_id=chat_id, message_id=msg_id, text="<i>Restarted !</i>")
         except Exception as e:
             LOGS.error(e)
             
 async def queue_loop():
-    LOGS.info("Queue Loop Started")
+    LOGS.info("Queue Loop Started !!")
     while True:
         if not ffQueue.empty():
             post_id = await ffQueue.get()
@@ -54,32 +53,20 @@ async def queue_loop():
         await asleep(10)
 
 async def main():
-    # Schedule both subbed and dubbed anime checks
     sch.add_job(upcoming_animes, "cron", hour=0, minute=30)
-    sch.add_job(upcoming_dubbed_animes, "cron", hour=1, minute=0)  # New schedule
-    
     await bot.start()
     await restart()
-    
-    # Initialize dual audio database
-    await dual_db.initialize()
-    LOGS.info('Dual Audio Database Initialized')
-    
     LOGS.info('Auto Anime Bot Started!')
     sch.start()
-    
-    # Start both fetchers
     bot_loop.create_task(queue_loop())
-    bot_loop.create_task(fetch_animes())
-    bot_loop.create_task(fetch_dubbed_animes())  # New task
-    
+    await fetch_animes()
     await idle()
     LOGS.info('Auto Anime Bot Stopped!')
     await bot.stop()
-    for task in all_tasks():
+    for task in all_tasks:
         task.cancel()
     await clean_up()
-    LOGS.info('Cleanup Complete')
+    LOGS.info('Finished AutoCleanUp !!')
     
 if __name__ == '__main__':
     bot_loop.run_until_complete(main())
