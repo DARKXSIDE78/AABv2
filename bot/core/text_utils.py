@@ -223,3 +223,16 @@ class TextEditor:
                 ep_no=self.pdata.get("episode_number"),
                 cred=Var.BRAND_UNAME,
             )
+
+class DualTextEditor(TextEditor):
+    async def get_upname(self, qual: str):
+        name = await super().get_upname(qual)
+        if "DUAL-AUDIO" in self._name:
+            return f"[DUAL] {name}"
+        return name
+
+    async def get_caption(self):
+        base = await super().get_caption()
+        if "DUAL-AUDIO" in self._name:
+            return f"{base}\n\n🎙️ <b>Dual Audio</b> (Japanese/English)"
+        return base
