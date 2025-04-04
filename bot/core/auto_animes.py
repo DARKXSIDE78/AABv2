@@ -151,4 +151,15 @@ async def extra_utils(msg_id, out_path):
         for chat_id in Var.BACKUP_CHANNEL.split():
             await msg.copy(int(chat_id))
             
-    # MediaInfo, ScreenShots, Sample Video ( Add-ons Features )
+async def getfeed(link, index=0):
+    feed = await sync_to_async(feedparse, link)
+    entry = feed.entries[index]
+    
+    if "DUAL-AUDIO" in entry.title.upper():
+        await dual_db.add_dual_entry({
+            'title': entry.title,
+            'link': entry.link,
+            'published': entry.published,
+            'is_dual': True
+        })
+    return entry
