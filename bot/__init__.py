@@ -12,7 +12,7 @@ from uvloop import install
 install()
 basicConfig(format="[%(asctime)s] [%(name)s | %(levelname)s] - %(message)s [%(filename)s:%(lineno)d]",
             datefmt="%m/%d/%Y, %H:%M:%S %p",
-            handlers=[FileHandler('log.txt'), StreamHandler()],
+            handlers=[FileHandler('bot.log'), StreamHandler()],
             level=INFO)
 
 getLogger("pyrogram").setLevel(ERROR)
@@ -20,25 +20,47 @@ LOGS = getLogger(__name__)
 
 load_dotenv('config.env')
 
-ani_cache = {
-    'fetch_animes': True,
-    'ongoing': set(),
-    'completed': set()
-}
-ffpids_cache = list()
+# Audio type constants
+SUBBED = "subbed"
+DUBBED = "dubbed"
 
-ffLock = Lock()
-ffQueue = Queue()
-ff_queued = dict()
+class AudioCache:
+    """Enhanced cache system for dual-audio tracking"""
+    def __init__(self):
+        self.sub: Set[int] = set()  # AniList IDs of subbed content
+        self.dub: Set[int] = set()  # AniList IDs of dubbed content
+        self.ongoing: Set[int] = set()
+        self.completed: Set[int] = set()
+        self.fetch_enabled = True
+
+    def add(self, ani_id: int, audio_type: str):
+        """Add processed content to cache"""
+        if audio_type == SUBBED:
+            self.sub.add(ani_id)
+        else:
+            self.dub.add(ani_id)
+
+    def exists(self, ani_id: int, audio_type: str) -> bool:
+        """Check if content exists in cache"""
+        return ani_id in (self.sub if audio_type == SUBBED else self.dub)
 
 class Var:
-    API_ID, API_HASH, BOT_TOKEN = getenv("API_ID"), getenv("API_HASH"), getenv("BOT_TOKEN")
+    # Core Configuration
+    API_ID = getenv("API_ID")
+    API_HASH = getenv("API_HASH")
+    BOT_TOKEN = getenv("BOT_TOKEN")
     MONGO_URI = getenv("MONGO_URI")
     
-    if not BOT_TOKEN or not API_HASH or not API_ID or not MONGO_URI:
-        LOGS.critical('Important Variables Missing. Fill Up and Retry..!! Exiting Now...')
-        exit(1)
-
+    # Dual Audio Configuration
+    DUAL_AUDIO = getenv("DUAL_AUDIO", "true").lower() == "true"
+    DUB_KEYWORDS = [kw.strip().lower() for kw in getenv("DUB_KEYWORDS", "[dub],[eng dub]").split(",")]
+    SUB_KEYWORDS = [kw.strip().lower() for kw in getenv("SUB_KEYWORDS", "[sub],[eng sub]").split(",")]
+    
+    # Path Configuration
+    DUBBED_PATH = getenv("DUBBED_PATH", "encode/dubbed")
+    SUBBED_PATH = getenv("SUBBED_PATH", "encode/subbed")
+    
+    # Existing Configuration (unchanged)
     RSS_ITEMS = getenv("RSS_ITEMS", "https://nyaa.land/?page=rss&q=ToonsHub+dual+multi").split()
     FSUB_CHATS = list(map(int, getenv('FSUB_CHATS').split()))
     BACKUP_CHANNEL = getenv("BACKUP_CHANNEL") or ""
@@ -66,20 +88,55 @@ class Var:
     START_MSG = getenv("START_MSG", "<b>Hey {first_name}</b>,\n\n    <i>I am Auto Animes Store & Automater Encoder Build with ❤️ !!</i>")
     START_BUTTONS = getenv("START_BUTTONS", "UPDATES|https://telegram.me/Rokubotz SUPPORT|https://telegram.me/Team_Roku")
 
-if Var.THUMB and not ospath.exists("thumb.jpg"):
-    system(f"wget -q {Var.THUMB} -O thumb.jpg")
-    LOGS.info("Thumbnail has been Saved!!")
-if not ospath.isdir("encode/"):
-    mkdir("encode/")
-if not ospath.isdir("thumbs/"):
-    mkdir("thumbs/")
-if not ospath.isdir("downloads/"):
-    mkdir("downloads/")
+
+    def __init__(self):
+        self._validate()
+
+    def _validate(self):
+        """Validate critical configurations"""
+        if not all([self.API_ID, self.API_HASH, self.BOT_TOKEN, self.MONGO_URI]):
+            LOGS.critical('Missing required environment variables!')
+            exit(1)
+            
+        if self.DUAL_AUDIO:
+            LOGS.info("Dual audio mode enabled")
+            if not all([self.DUBBED_PATH, self.SUBBED_PATH]):
+                LOGS.critical("Dual audio paths not configured!")
+                exit(1)
+
+Var = Var()
+
+for directory in ["encode", "thumbs", "downloads", Var.DUBBED_PATH, Var.SUBBED_PATH]:
+    if not ospath.isdir(directory):
+        mkdir(directory)
+        LOGS.info(f"Created directory: {directory}")
+                
+# Initialize caches and queues
+ani_cache = AudioCache()
+ffpids_cache = []
+ffLock = Lock()
+ffQueue = Queue()
+ff_queued = {}
+
+# Initialize caches and queues
+ani_cache = AudioCache()
+ffpids_cache = []
+ffLock = Lock()
+ffQueue = Queue()
+ff_queued = {}
 
 try:
-    bot = Client(name="AutoAniAdvance", api_id=Var.API_ID, api_hash=Var.API_HASH, bot_token=Var.BOT_TOKEN, plugins=dict(root="bot/modules"), parse_mode=ParseMode.HTML)
+    bot = Client(
+        name="AutoAniAdvance",
+        api_id=Var.API_ID,
+        api_hash=Var.API_HASH,
+        bot_token=Var.BOT_TOKEN,
+        plugins=dict(root="bot/modules"),
+        parse_mode=ParseMode.HTML
+    )
     bot_loop = bot.loop
     sch = AsyncIOScheduler(timezone="Asia/Kolkata", event_loop=bot_loop)
-except Exception as ee:
-    LOGS.error(str(ee))
+    
+except Exception as e:
+    LOGS.critical(f"Failed to initialize bot: {str(e)}")
     exit(1)
