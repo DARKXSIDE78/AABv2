@@ -22,3 +22,21 @@ class MongoDB:
         await self.__animes.drop()
 
 db = MongoDB(Var.MONGO_URI, "GenAnimeOngoingV2")
+
+class DualAudioDB:
+    def __init__(self):
+        self.client = AsyncIOMotorClient(Var.MONGO_URI)
+        self.db = self.client['AutoDualAudio']
+        self.col = self.db['dub_torrents']
+
+    async def add_dual_entry(self, data: dict):
+        await self.col.update_one(
+            {'_id': data['title']},
+            {'$set': data},
+            upsert=True
+        )
+
+    async def get_dual_entry(self, title: str):
+        return await self.col.find_one({'_id': title})
+
+dual_db = DualAudioDB()
